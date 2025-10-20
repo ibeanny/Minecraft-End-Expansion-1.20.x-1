@@ -13,8 +13,9 @@ import net.minecraftforge.event.entity.living.LivingChangeTargetEvent;
 import net.minecraftforge.event.entity.living.LivingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-
 import java.util.List;
+// Updated phantom implementation details
+
 
 @Mod.EventBusSubscriber(modid = MinecraftEndExpansion.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class EndPhantomTargeting {
