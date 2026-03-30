@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecraft:chorus_fruit"
+    },
+    {
+      "item": "minecraft:phantom_membrane"
+    },
+    {
+      "item": "minecraft:ender_pearl"
+    }
+  ],
+  "result": {
+    "item": "endexpansionmod:void_morsel",
+    "count": 1
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:shaped",
+  "category": "equipment",
+  "pattern": [
+    "M M",
+    "SPS",
+    " M "
+  ],
+  "key": {
+    "M": {
+      "item": "minecraft:phantom_membrane"
+    },
+    "S": {
+      "item": "minecraft:string"
+    },
+    "P": {
+      "item": "minecraft:ender_pearl"
+    }
+  },
+  "result": {
+    "item": "endexpansionmod:phantom_harness",
+    "count": 1
+  }
+}
