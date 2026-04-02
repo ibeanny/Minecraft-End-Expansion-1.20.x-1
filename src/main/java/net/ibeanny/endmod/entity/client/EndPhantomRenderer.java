@@ -19,6 +19,7 @@ public class EndPhantomRenderer extends MobRenderer<Phantom, PhantomModel<Phanto
     public EndPhantomRenderer(EntityRendererProvider.Context context) {
         super(context, new PhantomModel<>(context.bakeLayer(ModelLayers.PHANTOM)), 0.75F);
         this.addLayer(new EndPhantomColorLayer(this));
+        this.addLayer(new EndPhantomHarnessLayer(this));
         this.addLayer(new EndPhantomEyesLayer(this));
     }
 

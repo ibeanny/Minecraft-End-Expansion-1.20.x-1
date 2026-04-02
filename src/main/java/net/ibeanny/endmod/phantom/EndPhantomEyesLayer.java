@@ -3,6 +3,7 @@ package net.ibeanny.endmod.phantom;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.ibeanny.endmod.MinecraftEndExpansion;
+import net.ibeanny.endmod.entity.EndPhantomEntity;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
@@ -42,7 +43,7 @@ public class EndPhantomEyesLayer extends RenderLayer<Phantom, PhantomModel<Phant
         float red = 1.0F;
         float green = 1.0F;
         float blue = 1.0F;
-        DyeColor dyeColor = EndPhantomData.getColor(phantom).orElse(null);
+        DyeColor dyeColor = phantom instanceof EndPhantomEntity endPhantom ? endPhantom.getColor().orElse(null) : null;
         if (dyeColor != null) {
             float[] rgb = dyeColor.getTextureDiffuseColors();
             red = Math.min(1.0F, 0.35F + rgb[0] * 0.85F);

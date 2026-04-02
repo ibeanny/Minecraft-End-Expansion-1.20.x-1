@@ -27,11 +27,11 @@ public class EndVoidPhantomSpawns {
     private static final int HORIZ_SAMPLE = 12;
     private static final int DOWN_SCAN = 48;
     private static final int MIN_Y = 20;
-    private static final int NEARBY_RADIUS = 72;
-    private static final int SPAWN_SEARCH_STEPS = 8;
-    private static final int CAP_PER_PLAYER = 6;
-    private static final long TICK_INTERVAL = 60L;
-    private static final float BASE_SPAWN_CHANCE = 0.34f;
+    private static final int NEARBY_RADIUS = 88;
+    private static final int SPAWN_SEARCH_STEPS = 16;
+    private static final int CAP_PER_PLAYER = 8;
+    private static final long TICK_INTERVAL = 40L;
+    private static final float BASE_SPAWN_CHANCE = 0.50f;
 
     @SubscribeEvent
     public static void onLevelTick(TickEvent.LevelTickEvent event) {
@@ -52,17 +52,27 @@ public class EndVoidPhantomSpawns {
                     player.getX() - NEARBY_RADIUS, player.getY() - NEARBY_RADIUS, player.getZ() - NEARBY_RADIUS,
                     player.getX() + NEARBY_RADIUS, player.getY() + NEARBY_RADIUS, player.getZ() + NEARBY_RADIUS
             );
-            int nearbyCount = level.getEntitiesOfClass(Phantom.class, box).size();
+            int nearbyCount = level.getEntitiesOfClass(
+                    EndPhantomEntity.class,
+                    box,
+                    phantom -> !EndPhantomData.data(phantom).getBoolean(EndPhantomData.TAMED_TAG)
+            ).size();
             if (nearbyCount >= CAP_PER_PLAYER) continue;
 
             float spawnChance = BASE_SPAWN_CHANCE;
+            if (nearbyCount == 0) {
+                spawnChance = 1.0f;
+            }
             if (EndPhantomTargeting.isPhantomBait(player)) {
                 spawnChance += 0.18f;
             }
             if (level.random.nextFloat() > spawnChance) continue;
 
-            int toSpawn = 1 + (level.random.nextFloat() < 0.45f ? 1 : 0);
-            if (EndPhantomTargeting.isPhantomBait(player) && level.random.nextFloat() < 0.40f) {
+            int toSpawn = nearbyCount == 0 ? 2 : 1 + (level.random.nextFloat() < 0.60f ? 1 : 0);
+            if (nearbyCount == 0 && level.random.nextFloat() < 0.50f) {
+                toSpawn++;
+            }
+            if (EndPhantomTargeting.isPhantomBait(player) && level.random.nextFloat() < 0.45f) {
                 toSpawn++;
             }
 
@@ -80,6 +90,7 @@ public class EndVoidPhantomSpawns {
                 phantom.moveTo(x, y, z, level.random.nextFloat() * 360f, 0f);
                 phantom.setPhantomSize(1 + level.random.nextInt(3));
                 EndPhantomData.markEndPhantom(phantom);
+                phantom.markForSpawnValidation();
                 if (!player.isCreative()) {
                     phantom.setTarget(player);
                 }
@@ -90,7 +101,8 @@ public class EndVoidPhantomSpawns {
 
     @SubscribeEvent
     public static void onEntityJoinLevel(EntityJoinLevelEvent event) {
-        if (!(event.getEntity() instanceof EndPhantomEntity)) return;
+        if (!(event.getEntity() instanceof EndPhantomEntity phantom)) return;
+        if (!phantom.consumeSpawnValidationFlag()) return;
         Level level = event.getLevel();
         if (!level.dimension().equals(Level.END)) return;
 
@@ -111,10 +123,10 @@ public class EndVoidPhantomSpawns {
     private static BlockPos findVoidSpawnPos(Level level, Player player) {
         for (int attempt = 0; attempt < SPAWN_SEARCH_STEPS; attempt++) {
             double angle = level.random.nextDouble() * Math.PI * 2.0;
-            double dist = 20 + level.random.nextInt(36);
+            double dist = 28 + level.random.nextInt(52);
             double x = player.getX() + Math.cos(angle) * dist;
             double z = player.getZ() + Math.sin(angle) * dist;
-            double y = player.getY() + 14 + level.random.nextInt(16);
+            double y = player.getY() + 12 + level.random.nextInt(18);
 
             BlockPos spawnPos = BlockPos.containing(x, y, z);
             if (spawnPos.getY() < MIN_Y) {

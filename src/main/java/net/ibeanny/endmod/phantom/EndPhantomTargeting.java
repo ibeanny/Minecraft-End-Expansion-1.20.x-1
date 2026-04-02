@@ -33,8 +33,14 @@ public class EndPhantomTargeting {
         Level level = phantom.level();
         if (level.isClientSide() || !level.dimension().equals(Level.END)) return;
         if (!EndPhantomData.isEnhancedEndPhantom(phantom)) return;
+        if (EndPhantomData.data(phantom).getBoolean(EndPhantomData.TAMED_TAG)) return;
 
         LivingEntity newTarget = event.getNewTarget();
+        if (newTarget instanceof Phantom) {
+            event.setCanceled(true);
+            phantom.setTarget(null);
+            return;
+        }
         if (newTarget instanceof Player player) {
             if (isHoldingVoidMorsel(player) || !isEligibleTarget(player) || phantom.distanceTo(player) > AGGRO_RANGE) {
                 event.setCanceled(true);
@@ -49,8 +55,13 @@ public class EndPhantomTargeting {
         Level level = phantom.level();
         if (level.isClientSide() || !level.dimension().equals(Level.END)) return;
         if (!EndPhantomData.isEnhancedEndPhantom(phantom)) return;
+        if (EndPhantomData.data(phantom).getBoolean(EndPhantomData.TAMED_TAG)) return;
 
         LivingEntity currentTarget = phantom.getTarget();
+        if (currentTarget instanceof Phantom) {
+            phantom.setTarget(null);
+            return;
+        }
         if (currentTarget instanceof Player currentPlayer) {
             if (isHoldingVoidMorsel(currentPlayer) || !isEligibleTarget(currentPlayer) || phantom.distanceTo(currentPlayer) > LEASH_RANGE) {
                 phantom.setTarget(null);
@@ -130,7 +141,11 @@ public class EndPhantomTargeting {
     }
 
     public static boolean isEligibleTarget(Player player) {
-        return player.isAlive() && !player.isCreative() && !player.isSpectator() && isPhantomBait(player);
+        return player.isAlive()
+                && !player.isCreative()
+                && !player.isSpectator()
+                && !isMountedOnPhantom(player)
+                && isPhantomBait(player);
     }
 
     public static boolean isPhantomBait(Player player) {
@@ -142,5 +157,9 @@ public class EndPhantomTargeting {
         }
 
         return player.getItemBySlot(EquipmentSlot.CHEST).is(Items.ELYTRA);
+    }
+
+    private static boolean isMountedOnPhantom(Player player) {
+        return player.isPassenger() && player.getVehicle() instanceof Phantom;
     }
 }
