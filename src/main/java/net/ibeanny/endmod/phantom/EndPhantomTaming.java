@@ -1,6 +1,7 @@
 package net.ibeanny.endmod.phantom;
 
 import net.ibeanny.endmod.MinecraftEndExpansion;
+import net.ibeanny.endmod.entity.EndPhantomEntity;
 import net.ibeanny.endmod.item.EndExpansionItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -37,11 +38,13 @@ public class EndPhantomTaming {
 
     private static final double FOLLOW_START_DISTANCE = 8.0D;
     private static final double TELEPORT_DISTANCE = 32.0D;
-    private static final double IDLE_ORBIT_RADIUS = 3.5D;
-    private static final double IDLE_ORBIT_HEIGHT = 2.5D;
+    private static final double IDLE_ORBIT_RADIUS = 1.15D;
+    private static final double IDLE_ORBIT_HEIGHT = 1.42D;
+    private static final int IDLE_ORBIT_TICKS = 220;
     private static final double RIDE_SPEED = 0.40D;
     private static final double RIDE_ASCENT_SPEED = 0.28D;
     private static final double RIDE_DAMPING = 0.82D;
+    private static final int TAME_CHANCE = 3;
     private static final int AMBIENT_SOUND_MIN_DELAY = 180;
     private static final int AMBIENT_SOUND_MAX_DELAY = 360;
 
@@ -72,7 +75,11 @@ public class EndPhantomTaming {
 
         if (stack.getItem() instanceof DyeItem dyeItem) {
             if (isOwnedBy(phantom, player)) {
-                EndPhantomData.setColor(phantom, dyeItem.getDyeColor());
+                if (phantom instanceof EndPhantomEntity endPhantom) {
+                    endPhantom.setColor(dyeItem.getDyeColor());
+                } else {
+                    EndPhantomData.setColor(phantom, dyeItem.getDyeColor());
+                }
                 phantom.setPersistenceRequired();
                 if (!player.getAbilities().instabuild) {
                     stack.shrink(1);
@@ -85,7 +92,11 @@ public class EndPhantomTaming {
 
         if (stack.is(EndExpansionItems.PHANTOM_HARNESS.get())) {
             if (isOwnedBy(phantom, player) && !data.getBoolean(EndPhantomData.HARNESS_TAG)) {
-                data.putBoolean(EndPhantomData.HARNESS_TAG, true);
+                if (phantom instanceof EndPhantomEntity endPhantom) {
+                    endPhantom.setHarnessed(true);
+                } else {
+                    data.putBoolean(EndPhantomData.HARNESS_TAG, true);
+                }
                 phantom.setPersistenceRequired();
                 if (!player.getAbilities().instabuild) {
                     stack.shrink(1);
@@ -107,14 +118,16 @@ public class EndPhantomTaming {
                 }
                 phantom.heal(6.0F);
             } else if (!data.getBoolean(EndPhantomData.TAMED_TAG)) {
-                data.putBoolean(EndPhantomData.TAMED_TAG, true);
-                data.putUUID(EndPhantomData.OWNER_TAG, player.getUUID());
                 phantom.setTarget(null);
-                phantom.setPersistenceRequired();
-                phantom.heal(phantom.getMaxHealth());
-                scheduleNextAmbientSound(phantom);
-                if (player instanceof ServerPlayer serverPlayer) {
-                    serverPlayer.displayClientMessage(Component.literal("The End phantom recognizes you as its master."), true);
+                if (phantom.getRandom().nextInt(TAME_CHANCE) == 0) {
+                    data.putBoolean(EndPhantomData.TAMED_TAG, true);
+                    data.putUUID(EndPhantomData.OWNER_TAG, player.getUUID());
+                    phantom.setPersistenceRequired();
+                    phantom.heal(phantom.getMaxHealth());
+                    scheduleNextAmbientSound(phantom);
+                    phantom.level().broadcastEntityEvent(phantom, (byte) 7);
+                } else {
+                    phantom.level().broadcastEntityEvent(phantom, (byte) 6);
                 }
             } else {
                 event.setCancellationResult(InteractionResult.PASS);
@@ -174,13 +187,14 @@ public class EndPhantomTaming {
         Player owner = getOwnerPlayer(phantom);
         if (owner == null || !owner.isAlive()) {
             phantom.setTarget(null);
-            phantom.getPersistentData().remove(EndPhantomData.HARNESS_TAG);
             if (!phantom.getPassengers().isEmpty()) {
                 phantom.ejectPassengers();
             }
+            holdAtOwnerAnchor(phantom);
             return;
         }
 
+        updateOwnerAnchor(phantom, owner);
         playIdleAmbientIfReady(level, phantom);
 
         if (phantom.getTarget() instanceof Player targetPlayer && targetPlayer.getUUID().equals(owner.getUUID())) {
@@ -205,17 +219,30 @@ public class EndPhantomTaming {
             return;
         }
 
+        Vec3 ownerHoverTarget = owner.position().add(0.0D, 1.58D, 0.0D);
         double distance = phantom.distanceTo(owner);
         if (distance > TELEPORT_DISTANCE) {
             teleportNearOwner(phantom, owner);
             return;
         }
 
-        if (distance > FOLLOW_START_DISTANCE && phantom.getTarget() == null) {
-            Vec3 toOwner = owner.position().add(0.0D, 2.5D, 0.0D).subtract(phantom.position());
-            Vec3 motion = phantom.getDeltaMovement().scale(0.85D).add(toOwner.normalize().scale(0.08D));
-            phantom.setDeltaMovement(motion);
-            faceMotion(phantom, motion);
+        if (phantom.getTarget() == null) {
+            Vec3 toOwner = ownerHoverTarget.subtract(phantom.position());
+            double verticalGap = Math.abs(toOwner.y);
+            double horizontalGap = new Vec3(toOwner.x, 0.0D, toOwner.z).length();
+            if (distance > FOLLOW_START_DISTANCE || verticalGap > 0.55D || horizontalGap > 1.6D) {
+                double pull = distance > FOLLOW_START_DISTANCE ? 0.08D : 0.055D;
+                Vec3 motion = phantom.getDeltaMovement().scale(0.85D).add(toOwner.normalize().scale(pull));
+                if (toOwner.y > 0.25D) {
+                    motion = motion.add(0.0D, 0.035D, 0.0D);
+                } else if (toOwner.y < -0.25D) {
+                    motion = motion.add(0.0D, -0.02D, 0.0D);
+                }
+                phantom.setDeltaMovement(motion);
+                faceMotion(phantom, motion);
+            } else {
+                phantom.setDeltaMovement(phantom.getDeltaMovement().scale(0.82D));
+            }
         }
     }
 
@@ -268,6 +295,39 @@ public class EndPhantomTaming {
         }
     }
 
+    private static void updateOwnerAnchor(Phantom phantom, Player owner) {
+        CompoundTag data = EndPhantomData.data(phantom);
+        data.putDouble(EndPhantomData.OWNER_ANCHOR_X_TAG, owner.getX());
+        data.putDouble(EndPhantomData.OWNER_ANCHOR_Y_TAG, owner.getY() + 1.58D);
+        data.putDouble(EndPhantomData.OWNER_ANCHOR_Z_TAG, owner.getZ());
+    }
+
+    private static void holdAtOwnerAnchor(Phantom phantom) {
+        CompoundTag data = EndPhantomData.data(phantom);
+        if (!data.contains(EndPhantomData.OWNER_ANCHOR_X_TAG)
+                || !data.contains(EndPhantomData.OWNER_ANCHOR_Y_TAG)
+                || !data.contains(EndPhantomData.OWNER_ANCHOR_Z_TAG)) {
+            return;
+        }
+
+        double angle = (phantom.level().getGameTime() % 120L) / 120.0D * (Math.PI * 2.0D);
+        Vec3 anchor = new Vec3(
+                data.getDouble(EndPhantomData.OWNER_ANCHOR_X_TAG),
+                data.getDouble(EndPhantomData.OWNER_ANCHOR_Y_TAG),
+                data.getDouble(EndPhantomData.OWNER_ANCHOR_Z_TAG)
+        );
+        Vec3 target = anchor.add(Math.cos(angle) * 1.6D, 0.25D * Math.sin(angle * 2.0D), Math.sin(angle) * 1.6D);
+        Vec3 toTarget = target.subtract(phantom.position());
+        if (toTarget.lengthSqr() < 0.04D) {
+            phantom.setDeltaMovement(phantom.getDeltaMovement().scale(0.82D));
+            return;
+        }
+
+        Vec3 motion = phantom.getDeltaMovement().scale(0.84D).add(toTarget.normalize().scale(0.07D));
+        phantom.setDeltaMovement(motion);
+        faceMotion(phantom, motion);
+    }
+
     private static boolean canOccupyAir(Level level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
         BlockState above = level.getBlockState(pos.above());
@@ -283,15 +343,15 @@ public class EndPhantomTaming {
             horizontalLook = horizontalLook.normalize();
         }
 
-        Vec3 right = new Vec3(-horizontalLook.z, 0.0D, horizontalLook.x);
+        Vec3 right = new Vec3(horizontalLook.z, 0.0D, -horizontalLook.x);
         double forward = rider.zza;
         double strafe = rider.xxa * 0.65D;
-        double vertical = Mth.clamp(-look.y * Math.max(0.2D, Math.abs(forward)), -1.0D, 1.0D);
+        double vertical = Mth.clamp(look.y * Math.max(0.2D, Math.abs(forward)), -1.0D, 1.0D);
         if (rider.isCrouching()) {
             vertical -= 0.85D;
         }
 
-        Vec3 desired = horizontalLook.scale(forward).add(right.scale(strafe)).add(0.0D, vertical, 0.0D);
+            Vec3 desired = horizontalLook.scale(forward).add(right.scale(strafe)).add(0.0D, vertical, 0.0D);
         if (desired.lengthSqr() > 1.0D) {
             desired = desired.normalize();
         }
@@ -338,28 +398,32 @@ public class EndPhantomTaming {
     }
 
     private static void orbitOwner(Phantom phantom, Player owner) {
-        double angle = (phantom.level().getGameTime() % 80L) / 80.0D * (Math.PI * 2.0D);
+        double phaseOffset = (phantom.getUUID().hashCode() & 1023) / 1024.0D * (Math.PI * 2.0D);
+        double angle = (phantom.level().getGameTime() % IDLE_ORBIT_TICKS) / (double) IDLE_ORBIT_TICKS * (Math.PI * 2.0D) + phaseOffset;
         double x = owner.getX() + Math.cos(angle) * IDLE_ORBIT_RADIUS;
         double z = owner.getZ() + Math.sin(angle) * IDLE_ORBIT_RADIUS;
-        double y = owner.getY() + IDLE_ORBIT_HEIGHT + 0.35D * Math.sin(angle * 2.0D);
+        double y = owner.getY() + IDLE_ORBIT_HEIGHT + 0.14D * Math.sin(angle * 2.0D);
 
         Vec3 target = new Vec3(x, y, z);
         Vec3 toTarget = target.subtract(phantom.position());
         if (toTarget.lengthSqr() < 0.01D) {
-            phantom.setDeltaMovement(phantom.getDeltaMovement().scale(0.8D));
+            phantom.setDeltaMovement(phantom.getDeltaMovement().scale(0.74D));
             return;
         }
 
-        Vec3 motion = phantom.getDeltaMovement().scale(0.78D).add(toTarget.normalize().scale(0.10D));
+        Vec3 tangent = new Vec3(-Math.sin(angle), 0.0D, Math.cos(angle)).scale(0.045D);
+        Vec3 correction = toTarget.normalize().scale(0.035D);
+        Vec3 motion = phantom.getDeltaMovement().scale(0.78D).add(tangent).add(correction);
         phantom.setDeltaMovement(motion);
-        faceMotion(phantom, motion);
+        faceMotion(phantom, motion.add(tangent));
     }
 
     private static void faceMotion(Phantom phantom, Vec3 motion) {
         if (motion.lengthSqr() < 1.0E-5D) {
             return;
         }
-        float yaw = (float) (Mth.atan2(motion.z, motion.x) * (180F / Math.PI)) - 90.0F;
+        float targetYaw = (float) (Mth.atan2(motion.z, motion.x) * (180F / Math.PI)) - 90.0F;
+        float yaw = phantom.getYRot() + Mth.wrapDegrees(targetYaw - phantom.getYRot()) * 0.18F;
         phantom.setYRot(yaw);
         phantom.yBodyRot = yaw;
     }
@@ -411,8 +475,11 @@ public class EndPhantomTaming {
     }
 
     private static boolean canRide(Phantom phantom, Player player) {
+        boolean harnessed = phantom instanceof EndPhantomEntity endPhantom
+                ? endPhantom.isHarnessed()
+                : EndPhantomData.data(phantom).getBoolean(EndPhantomData.HARNESS_TAG);
         return isOwnedBy(phantom, player)
-                && EndPhantomData.data(phantom).getBoolean(EndPhantomData.HARNESS_TAG)
+                && harnessed
                 && (phantom.getPassengers().isEmpty() || phantom.getFirstPassenger() == player);
     }
 

@@ -3,7 +3,7 @@ package net.ibeanny.endmod.entity.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.ibeanny.endmod.MinecraftEndExpansion;
-import net.ibeanny.endmod.phantom.EndPhantomData;
+import net.ibeanny.endmod.entity.EndPhantomEntity;
 import net.minecraft.client.model.PhantomModel;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -27,7 +27,7 @@ public class EndPhantomColorLayer extends RenderLayer<Phantom, PhantomModel<Phan
     public void render(PoseStack poseStack, MultiBufferSource buffer, int packedLight, Phantom phantom,
                        float limbSwing, float limbSwingAmount, float partialTicks, float ageInTicks,
                        float netHeadYaw, float headPitch) {
-        DyeColor color = EndPhantomData.getColor(phantom).orElse(null);
+        DyeColor color = phantom instanceof EndPhantomEntity endPhantom ? endPhantom.getColor().orElse(null) : null;
         if (color == null) {
             return;
         }

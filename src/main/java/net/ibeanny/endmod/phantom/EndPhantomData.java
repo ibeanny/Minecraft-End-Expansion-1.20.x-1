@@ -16,6 +16,9 @@ public final class EndPhantomData {
     public static final String STRIKE_COOLDOWN_TAG = "endexpansionmod.strike_cooldown";
     public static final String AMBIENT_SOUND_COOLDOWN_TAG = "endexpansionmod.ambient_sound_cooldown";
     public static final String COLOR_TAG = "endexpansionmod.color";
+    public static final String OWNER_ANCHOR_X_TAG = "endexpansionmod.owner_anchor_x";
+    public static final String OWNER_ANCHOR_Y_TAG = "endexpansionmod.owner_anchor_y";
+    public static final String OWNER_ANCHOR_Z_TAG = "endexpansionmod.owner_anchor_z";
 
     private EndPhantomData() {
     }
